@@ -130,6 +130,8 @@ export default function App() {
   const [movements, setMov]   = useState([]);
   const [toast, setToast]     = useState(null);
   const [scoutImgs, setScoutImgs] = useState([]);
+  const [scoutText, setScoutText] = useState("");
+  const [scoutMode, setScoutMode] = useState("imagen"); // "imagen" | "texto"
   const [scoutResult, setScoutResult] = useState(null);
   const [scoutLoading, setScoutLoading] = useState(false);
   const [expandedPlayer, setExpandedPlayer] = useState(null);
@@ -180,7 +182,7 @@ export default function App() {
   };
 
   const runScout = async () => {
-    if (!scoutImgs.length) return;
+    if (!scoutImgs.length && !scoutText.trim()) return;
     setScoutLoading(true);
     setScoutResult(null);
     try {
@@ -188,6 +190,42 @@ export default function App() {
         type: "image",
         source: { type: "base64", media_type: img.type, data: img.b64 },
       }));
+
+      const PROMPT_BASE = `Eres un experto en fantasy fútbol Biwenger analizando el mercado del Mundial 2026.
+
+Contexto del Mundial 2026:
+- Favoritas al título: España (18%), Francia (13%), Inglaterra (14%), Argentina/Brasil (11%), Portugal
+- Selecciones con buen recorrido: Marruecos, Croacia, Noruega, Senegal, Colombia, México
+- Selecciones de eliminación temprana probable: Panamá, Qatar, Congo, Uzbekistán, Arabia Saudita
+
+Mi plantilla actual: Yüksek (MC,Turquía), Pathé Ciss (MC,Senegal), Sunjic (MC,Bosnia), Ermin Mahmić (MC,Bosnia), Akgün (DL,Turquía), Jhon Lucumí (DF,Colombia), Axel Tuanzebe (DF,Congo), Hassan Tambakti (DF,ArabiaSaudita), Andrés Andrade (DF,Panamá), Vlasic (MC,Croacia), Gue-sung Cho (DL,CoreaSur), Echghouyab (DL,Marruecos), Anang (PT,Ghana), Paul Izzo (PT,Australia), Kristoffer Ajer (DF,Noruega).
+Saldo disponible: 21.13M€
+
+El formato de texto de movimientos de mercado es: "Jugador: Cambia por X € a NombreEquipo"
+Esto indica que ese jugador ha sido fichado por ese equipo por ese precio.
+
+Para CADA jugador mencionado, devuelve SOLO JSON válido sin backticks:
+{
+  "jugadores": [
+    {
+      "nombre": "nombre",
+      "pos": "PT/DF/MC/DL/E",
+      "seleccion": "país",
+      "valor": número en euros,
+      "tendencia": 0,
+      "mundialScore": número del 1 al 5,
+      "recomendacion": "FICHAR" o "PASAR" o "VIGILAR",
+      "razon": "explicación breve en español máx 20 palabras",
+      "prioridad": 1, 2 o 3,
+      "equipo_destino": "nombre del equipo que lo fichó si aparece, sino null"
+    }
+  ],
+  "resumen": "análisis de los movimientos y estrategia recomendada en 2-3 frases"
+}`;
+
+      const textContent = scoutText.trim()
+        ? `${PROMPT_BASE}\n\nMovimientos de mercado a analizar:\n${scoutText.trim()}`
+        : `${PROMPT_BASE}\n\nAnaliza los jugadores que aparecen en estas capturas del mercado de Biwenger.`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -199,37 +237,7 @@ export default function App() {
             role: "user",
             content: [
               ...imgBlocks,
-              {
-                type: "text",
-                text: `Eres un experto en fantasy fútbol Biwenger analizando el mercado del Mundial 2026.
-Analiza los jugadores que aparecen en estas capturas del mercado de Biwenger.
-
-Contexto del Mundial 2026:
-- Favoritas al título: España (18%), Francia (13%), Inglaterra (14%), Argentina/Brasil (11%), Portugal
-- Selecciones con buen recorrido: Marruecos, Croacia, Noruega (Haaland), Senegal, Colombia
-- Selecciones de eliminación temprana probable: Panamá, Qatar, Congo, Uzbekistán, Jordania, Arabia Saudita
-
-Mi plantilla actual: Yüksek (MC,Turquía), Pathé Ciss (MC,Senegal), Sunjic (MC,Bosnia), Ermin Mahmić (MC,Bosnia), Akgün (DL,Turquía), Jhon Lucumí (DF,Colombia), Axel Tuanzebe (DF,Congo), Hassan Tambakti (DF,ArabiaSaudita), Andrés Andrade (DF,Panamá), Vlasic (MC,Croacia), Gue-sung Cho (DL,CoreaSur), Echghouyab (DL,Marruecos), Anang (PT,Ghana), Paul Izzo (PT,Australia), Kristoffer Ajer (DF,Noruega).
-Saldo disponible: 21.13M€
-
-Para CADA jugador visible en el mercado, devuelve SOLO JSON válido sin backticks:
-{
-  "jugadores": [
-    {
-      "nombre": "nombre",
-      "pos": "PT/DF/MC/DL/E",
-      "seleccion": "país",
-      "valor": número en euros,
-      "tendencia": número (positivo=sube, negativo=baja),
-      "mundialScore": número del 1 al 5,
-      "recomendacion": "FICHAR" o "PASAR" o "VIGILAR",
-      "razon": "explicación breve en español máx 20 palabras",
-      "prioridad": 1, 2 o 3
-    }
-  ],
-  "resumen": "texto breve con la estrategia global en 2-3 frases"
-}`,
-              },
+              { type: "text", text: textContent },
             ],
           }],
         }),
@@ -554,50 +562,78 @@ Para CADA jugador visible en el mercado, devuelve SOLO JSON válido sin backtick
         {/* ── SCOUT IA ── */}
         {tab === "scout" && (
           <div style={{ padding: "16px 14px" }}>
-            <div style={{ fontSize: 10, letterSpacing: 3, color: "#d4af3770", marginBottom: 4, textTransform: "uppercase" }}>
+            <div style={{ fontSize: 10, letterSpacing: 3, color: "#d4af3770", marginBottom: 14, textTransform: "uppercase" }}>
               Scout de mercado con IA
             </div>
-            <div style={{ fontSize: 12, color: "#ffffff50", marginBottom: 16 }}>
-              Sube capturas del mercado de Biwenger y la IA analizará cada jugador cruzando con datos del Mundial.
+
+            {/* Mode selector */}
+            <div style={{ display: "flex", background: "#ffffff08", borderRadius: 12, padding: 4, marginBottom: 16, gap: 4 }}>
+              {[["imagen", "📸 Imagen"], ["texto", "📋 Texto"]].map(([mode, label]) => (
+                <button key={mode} onClick={() => { setScoutMode(mode); setScoutResult(null); setScoutImgs([]); setScoutText(""); }} style={{
+                  flex: 1, padding: "10px", border: "none", borderRadius: 9,
+                  background: scoutMode === mode ? "#d4af37" : "none",
+                  color: scoutMode === mode ? "#000" : "#ffffff60",
+                  fontFamily: "Georgia, serif", fontSize: 13, fontWeight: scoutMode === mode ? "bold" : "normal",
+                  cursor: "pointer", transition: "all 0.2s",
+                }}>{label}</button>
+              ))}
             </div>
 
-            {/* Upload zone */}
-            <div
-              onClick={() => fileRef.current?.click()}
-              style={{
-                border: "2px dashed #d4af3740",
-                borderRadius: 18,
-                padding: "28px 20px",
-                textAlign: "center",
-                cursor: "pointer",
-                background: "#d4af3706",
-                marginBottom: 14,
-              }}
-            >
-              {scoutImgs.length > 0 ? (
-                <div>
-                  <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 10 }}>
-                    {scoutImgs.map((img, i) => (
-                      <img key={i} src={img.preview} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10 }} />
-                    ))}
-                  </div>
-                  <div style={{ color: "#d4af37", fontSize: 13 }}>{scoutImgs.length} imagen{scoutImgs.length > 1 ? "es" : ""} lista{scoutImgs.length > 1 ? "s" : ""}</div>
-                  <div style={{ color: "#ffffff40", fontSize: 11, marginTop: 3 }}>Toca para añadir más</div>
+            {/* IMAGE MODE */}
+            {scoutMode === "imagen" && (
+              <>
+                <div onClick={() => fileRef.current?.click()} style={{
+                  border: "2px dashed #d4af3740", borderRadius: 18, padding: "28px 20px",
+                  textAlign: "center", cursor: "pointer", background: "#d4af3706", marginBottom: 14,
+                }}>
+                  {scoutImgs.length > 0 ? (
+                    <div>
+                      <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginBottom: 10 }}>
+                        {scoutImgs.map((img, i) => (
+                          <img key={i} src={img.preview} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10 }} />
+                        ))}
+                      </div>
+                      <div style={{ color: "#d4af37", fontSize: 13 }}>{scoutImgs.length} imagen{scoutImgs.length > 1 ? "es" : ""} lista{scoutImgs.length > 1 ? "s" : ""}</div>
+                      <div style={{ color: "#ffffff40", fontSize: 11, marginTop: 3 }}>Toca para añadir más</div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 44, marginBottom: 8 }}>📸</div>
+                      <div style={{ color: "#d4af37", fontSize: 15, marginBottom: 4 }}>Subir capturas del mercado</div>
+                      <div style={{ color: "#ffffff40", fontSize: 12 }}>Puedes subir varias a la vez</div>
+                    </>
+                  )}
                 </div>
-              ) : (
-                <>
-                  <div style={{ fontSize: 44, marginBottom: 8 }}>📸</div>
-                  <div style={{ color: "#d4af37", fontSize: 15, marginBottom: 4 }}>Subir capturas del mercado</div>
-                  <div style={{ color: "#ffffff40", fontSize: 12 }}>Puedes subir varias a la vez</div>
-                </>
-              )}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }}
-              onChange={e => handleScoutFiles(Array.from(e.target.files || []))} />
+                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }}
+                  onChange={e => handleScoutFiles(Array.from(e.target.files || []))} />
+              </>
+            )}
 
-            {scoutImgs.length > 0 && !scoutLoading && (
+            {/* TEXT MODE */}
+            {scoutMode === "texto" && (
+              <>
+                <div style={{ fontSize: 11, color: "#ffffff50", marginBottom: 8 }}>
+                  Pega los movimientos en el formato:<br/>
+                  <span style={{ color: "#d4af3790", fontStyle: "italic" }}>Jugador: Cambia por X € a Equipo</span>
+                </div>
+                <textarea
+                  value={scoutText}
+                  onChange={e => setScoutText(e.target.value)}
+                  placeholder={"Hakimi: Cambia por 7.888.888 € a Sabio de hortaleza\nMaignan: Cambia por 5.777.777 € a Sabio de hortaleza\nLopetegui: Cambia por 230.000 € a Sr. Lobo"}
+                  style={{
+                    width: "100%", minHeight: 160, background: "#ffffff08",
+                    border: "1px solid #d4af3740", borderRadius: 14,
+                    color: "#f0ede8", fontSize: 13, fontFamily: "Georgia, serif",
+                    padding: "14px", boxSizing: "border-box", resize: "vertical",
+                    outline: "none", lineHeight: 1.6,
+                  }}
+                />
+              </>
+            )}
+
+            {(scoutImgs.length > 0 || scoutText.trim()) && !scoutLoading && (
               <button onClick={runScout} style={{
-                width: "100%", padding: "14px", marginBottom: 14,
+                width: "100%", padding: "14px", marginBottom: 14, marginTop: 12,
                 background: "linear-gradient(135deg, #d4af37, #b8860b)",
                 border: "none", borderRadius: 14,
                 color: "#000", fontSize: 15, fontWeight: "bold",
@@ -661,7 +697,12 @@ Para CADA jugador visible en el mercado, devuelve SOLO JSON válido sin backtick
                                 border: `1px solid ${POS_COLOR[j.pos] || "#ffffff"}40`,
                               }}>{j.pos}</span>
                             </div>
-                            <div style={{ fontSize: 11, color: "#ffffff50", marginBottom: 4 }}>{j.seleccion}</div>
+                            <div style={{ fontSize: 11, color: "#ffffff50", marginBottom: 2 }}>{j.seleccion}</div>
+                            {j.equipo_destino && (
+                              <div style={{ fontSize: 11, color: "#60a5fa", marginBottom: 4 }}>
+                                → {j.equipo_destino}
+                              </div>
+                            )}
                             <div style={{ fontSize: 11, color: "#ffffff75" }}>{j.razon}</div>
                             <div style={{ fontSize: 10, color: j.mundialScore >= 4 ? "#4ade80" : j.mundialScore >= 3 ? "#facc15" : "#f87171", marginTop: 4 }}>
                               Mundial: {"★".repeat(j.mundialScore)}{"☆".repeat(5 - j.mundialScore)}
@@ -681,7 +722,7 @@ Para CADA jugador visible en el mercado, devuelve SOLO JSON válido sin backtick
                   );
                 })}
 
-                <button onClick={() => { setScoutImgs([]); setScoutResult(null); }} style={{
+                <button onClick={() => { setScoutImgs([]); setScoutText(""); setScoutResult(null); }} style={{
                   width: "100%", padding: "11px", marginTop: 4,
                   background: "none", border: "1px solid #ffffff20",
                   borderRadius: 12, color: "#ffffff50", fontSize: 13,
