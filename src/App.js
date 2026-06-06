@@ -229,7 +229,7 @@ Para CADA jugador mencionado, devuelve SOLO JSON válido sin backticks:
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": "sk-ant-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", "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
